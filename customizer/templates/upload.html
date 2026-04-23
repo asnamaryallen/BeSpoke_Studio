@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Product Customizer Pro</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f4f9; display: flex; gap: 20px; padding: 20px; margin: 0; height: 100vh; box-sizing: border-box; }
+        .sidebar { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 350px; overflow-y: auto; flex-shrink: 0; }
+        .preview-area { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); flex-grow: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+        h2 { margin-top: 0; font-size: 1.2rem; color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .form-group { margin-bottom: 12px; }
+        label { font-weight: bold; display: block; margin-bottom: 4px; font-size: 12px; color: #555; }
+        .product-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+        .product-grid input { display: none; }
+        .product-label { border: 2px solid #eee; border-radius: 6px; padding: 6px; text-align: center; cursor: pointer; font-size: 11px; display: block; }
+        input:checked + .product-label { border-color: #3498db; background: #eaf4fc; font-weight: bold; }
+        input[type="range"] { width: 100%; margin: 5px 0; }
+        .result-img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
+        .math-panel { background: #1e1e1e; color: #00ff00; padding: 10px; border-radius: 8px; margin-top: 10px; font-family: monospace; font-size: 10px; }
+        .success { color: #27ae60; font-size: 12px; font-weight: bold; margin-top: 5px; }
+        .error { color: #e74c3c; font-size: 11px; background: #fadbd8; padding: 8px; border-radius: 4px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h2>Control Panel</h2>
+        {% if error_message %}<div class="error">{{ error_message }}</div>{% endif %}
+
+        <form method="POST" enctype="multipart/form-data" id="customizerForm">
+            {% csrf_token %}
+            <input type="hidden" name="previous_design" value="{{ previous_design }}">
+
+            <div class="form-group">
+                <label>1. Design File</label>
+                <input type="file" name="design_image" onchange="this.form.submit()">
+                {% if previous_design %}<small style="color:green; font-size: 10px;">Loaded: {{ previous_design }}</small>{% endif %}
+            </div>
+
+            <div class="form-group">
+                <label>2. Base Product</label>
+                <div class="product-grid">
+                    <input type="radio" name="base_product" id="shirt" value="shirt.jpg" onchange="this.form.submit()" {% if selected_base == 'shirt.jpg' or not selected_base %}checked{% endif %}>
+                    <label class="product-label" for="shirt">T-Shirt</label>
+
+                    <input type="radio" name="base_product" id="hoodie" value="hoodie.jpg" onchange="this.form.submit()" {% if selected_base == 'hoodie.jpg' %}checked{% endif %}>
+                    <label class="product-label" for="hoodie">Hoodie</label>
+
+                    <input type="radio" name="base_product" id="mug" value="mug.jpg" onchange="submitForm()" {% if selected_base == 'mug.jpg' %}checked{% endif %}>
+                    <label class="product-label" for="mug">Mug</label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>3. Processing Stage</label>
+                <select name="processing_stage" onchange="this.form.submit()" style="width:100%; font-size: 12px;">
+                    <option value="flat" {% if processing_stage == 'flat' %}selected{% endif %}>Stage 1: Flat</option>
+                    <option value="perspective" {% if processing_stage == 'perspective' %}selected{% endif %}>Stage 2: Perspective</option>
+                    <option value="blending" {% if processing_stage == 'blending' or not processing_stage %}selected{% endif %}>Stage 3: Realism</option>
+                </select>
+            </div>
+
+            <div style="background: #f9f9f9; padding: 10px; border-radius: 8px; border: 1px solid #eee;">
+                <label style="color: #3498db; margin-bottom: 10px;">Adjustments</label>
+                
+                <label>Scale: {{ current_scale|default:100 }}%</label>
+                <input type="range" name="scale_percent" min="20" max="180" value="{{ current_scale|default:100 }}" onchange="this.form.submit()">
+                
+                <label>Rotate: {{ current_rotation|default:0 }}°</label>
+                <input type="range" name="rotation" min="-180" max="180" value="{{ current_rotation|default:0 }}" onchange="this.form.submit()">
+                
+                <label>X-Pos: {{ current_x|default:0 }}px</label>
+                <input type="range" name="offset_x" min="-200" max="200" value="{{ current_x|default:0 }}" onchange="this.form.submit()">
+                
+                <label>Y-Pos: {{ current_y|default:0 }}px</label>
+                <input type="range" name="offset_y" min="-250" max="250" value="{{ current_y|default:0 }}" onchange="this.form.submit()">
+                
+                <label>Shadows: {{ blend_intensity|default:50 }}%</label>
+                <input type="range" name="blend_intensity" min="0" max="100" value="{{ blend_intensity|default:50 }}" onchange="this.form.submit()">
+            </div>
+        </form>
+
+        <div class="math-panel">
+            <span style="color: #569cd6;">> Matrix_Log</span><br>
+            Points: {{ live_math }}
+        </div>
+    </div>
+
+    <div class="preview-area">
+        {% if image_url %}
+            <img src="{{ image_url }}" class="result-img" id="resultImg">
+            <div style="position: absolute; bottom: 10px; background: rgba(255,255,255,0.8); padding: 5px 10px; border-radius: 20px;" class="success">{{ success_message }}</div>
+        {% else %}
+            <p style="color: #bbb;">Upload a design to start.</p>
+        {% endif %}
+    </div>
+
+    <script>
+        function submitForm() { document.getElementById('customizerForm').submit(); }
+    </script>
+</body>
+</html>

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BeSpoke | Your Customization Peer</title>
+    <style>
+        :root {
+            --primary: #1a1a1a;
+            --accent: #007bff; /* Matching your studio blue */
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #ffffff;
+            color: var(--primary);
+            font-family: 'Inter', -apple-system, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            text-align: center;
+            overflow: hidden;
+            perspective: 1000px; /* For the 3D parallax feel */
+        }
+
+        /* Subtle background grid to imply precision/engineering */
+        .bg-grid {
+            position: absolute;
+            width: 200%;
+            height: 200%;
+            background-image: radial-gradient(#e0e0e0 1px, transparent 1px);
+            background-size: 40px 40px;
+            z-index: -1;
+            top: -50%;
+            left: -50%;
+            transition: transform 0.1s ease-out;
+        }
+
+        .hero-section {
+            max-width: 800px;
+            padding: 20px;
+            z-index: 10;
+        }
+
+        /* Entrance Animation for the Brand Name */
+        .brand-name {
+            font-size: clamp(3rem, 10vw, 6rem);
+            font-weight: 800;
+            letter-spacing: -3px;
+            margin: 0;
+            text-transform: uppercase;
+            opacity: 0;
+            transform: translateY(30px);
+            animation: fadeInUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        }
+
+        .tagline {
+            font-size: 1.1rem;
+            color: #666;
+            margin: 15px 0 50px 0;
+            font-weight: 400;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            opacity: 0;
+            animation: fadeInUp 0.8s 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        }
+
+        .enter-btn {
+            display: inline-block;
+            background-color: var(--primary);
+            color: #ffffff;
+            text-decoration: none;
+            padding: 20px 50px;
+            border-radius: 2px; /* Sharp corners for a more architectural look */
+            font-weight: 700;
+            font-size: 0.9rem;
+            transition: all 0.4s;
+            letter-spacing: 2px;
+            border: 1px solid var(--primary);
+            opacity: 0;
+            animation: fadeInUp 0.8s 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        }
+
+        .enter-btn:hover {
+            background-color: transparent;
+            color: var(--primary);
+            transform: scale(1.05);
+        }
+
+        /* KEYFRAMES */
+        @keyframes fadeInUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .footer-note {
+            position: absolute;
+            bottom: 40px;
+            font-size: 0.7rem;
+            color: #bbb;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="bg-grid" id="grid"></div>
+
+    <div class="hero-section">
+        <h1 class="brand-name">BeSpoke</h1>
+        <p class="tagline">Your Customization Peer</p>
+        
+        <a href="/studio/" class="enter-btn">ENTER STUDIO</a>
+    </div>
+
+    <div class="footer-note">
+        OpenCV Rendering Engine &bull; Django Framework
+    </div>
+
+    <script>
+        // MOUSE PARALLAX EFFECT
+        // This moves the background grid slightly when the user moves their mouse
+        const grid = document.getElementById('grid');
+        document.addEventListener('mousemove', (e) => {
+            const x = (window.innerWidth / 2 - e.pageX) / 25;
+            const y = (window.innerHeight / 2 - e.pageY) / 25;
+            grid.style.transform = `translate(${x}px, ${y}px)`;
+        });
+    </script>
+
+</body>
+</html>
