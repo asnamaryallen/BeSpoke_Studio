@@ -5,3 +5,4 @@ opencv-python-headless==4.13.0.92
 pillow==12.2.0
 sqlparse==0.5.5
 tzdata==2026.1
+whitenoise
