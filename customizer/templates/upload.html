@@ -27,12 +27,15 @@
 
         <form method="POST" enctype="multipart/form-data" id="customizerForm">
             {% csrf_token %}
-            <input type="hidden" name="previous_design" value="{{ previous_design }}">
+            
+            <input type="hidden" name="using_session" value="{% if image_url %}true{% else %}false{% endif %}">
 
             <div class="form-group">
                 <label>1. Design File</label>
                 <input type="file" name="design_image" onchange="this.form.submit()">
-                {% if previous_design %}<small style="color:green; font-size: 10px;">Loaded: {{ previous_design }}</small>{% endif %}
+                {% if image_url %}
+                    <small style="color:green; font-size: 10px;">✓ Design loaded in session</small>
+                {% endif %}
             </div>
 
             <div class="form-group">
@@ -44,7 +47,7 @@
                     <input type="radio" name="base_product" id="hoodie" value="hoodie.jpg" onchange="this.form.submit()" {% if selected_base == 'hoodie.jpg' %}checked{% endif %}>
                     <label class="product-label" for="hoodie">Hoodie</label>
 
-                    <input type="radio" name="base_product" id="mug" value="mug.jpg" onchange="submitForm()" {% if selected_base == 'mug.jpg' %}checked{% endif %}>
+                    <input type="radio" name="base_product" id="mug" value="mug.jpg" onchange="this.form.submit()" {% if selected_base == 'mug.jpg' %}checked{% endif %}>
                     <label class="product-label" for="mug">Mug</label>
                 </div>
             </div>
@@ -87,14 +90,10 @@
     <div class="preview-area">
         {% if image_url %}
             <img src="{{ image_url }}" class="result-img" id="resultImg">
-            <div style="position: absolute; bottom: 10px; background: rgba(255,255,255,0.8); padding: 5px 10px; border-radius: 20px;" class="success">{{ success_message }}</div>
+            <div style="position: absolute; bottom: 10px; background: rgba(255,255,255,0.8); padding: 5px 10px; border-radius: 20px;" class="success">Processing complete.</div>
         {% else %}
             <p style="color: #bbb;">Upload a design to start.</p>
         {% endif %}
     </div>
-
-    <script>
-        function submitForm() { document.getElementById('customizerForm').submit(); }
-    </script>
 </body>
 </html>

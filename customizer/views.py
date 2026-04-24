@@ -15,43 +15,49 @@ PRODUCT_CONFIGS = {
 
 def upload_view(request):
     context = {}
+    
     if request.method == 'POST':
+        # 1. HANDLE DESIGN PERSISTENCE
         design_file = request.FILES.get('design_image')
-        
-        if not design_file:
+        # Check if we have a previous design stored in session to allow slider updates
+        if design_file:
+            # Save new upload to session as base64 string
+            file_bytes = design_file.read()
+            request.session['saved_design'] = base64.b64encode(file_bytes).decode('utf-8')
+            design_data = file_bytes
+        elif 'saved_design' in request.session:
+            # Use the design from the previous upload
+            design_data = base64.b64decode(request.session['saved_design'])
+        else:
             return render(request, 'upload.html', {'error_message': 'Please upload a design first!'})
 
         try:
-            # 1. Process Uploaded Design in RAM
-            file_bytes = np.frombuffer(design_file.read(), np.uint8)
-            design_img = cv2.imdecode(file_bytes, cv2.IMREAD_UNCHANGED)
+            # 2. CONVERT TO OPENCV IMAGE
+            nparr = np.frombuffer(design_data, np.uint8)
+            design_img = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)
             
             if design_img is None:
-                raise Exception("Invalid image file uploaded.")
+                raise Exception("Invalid image file.")
 
-            # 2. THE PATH FIX: Search everywhere for the base product
+            # 3. PATH SEARCH FOR BASE PRODUCT
             selected_base = request.POST.get('base_product', 'shirt.jpg')
-            
-            # This searches the root, static, and app folders automatically
             search_paths = [
                 os.path.join(settings.BASE_DIR, 'static', selected_base),
-                os.path.join(settings.BASE_DIR, 'staticfiles', selected_base),
                 os.path.join(settings.BASE_DIR, 'customizer', 'static', selected_base),
-                os.path.join(os.path.dirname(__file__), 'static', selected_base),
-                selected_base # Root check
+                os.path.join(settings.BASE_DIR, 'staticfiles', selected_base),
+                selected_base
             ]
             
             base_img = None
             for path in search_paths:
                 if os.path.exists(path):
                     base_img = cv2.imread(path)
-                    if base_img is not None:
-                        break
+                    if base_img is not None: break
 
             if base_img is None:
-                raise Exception(f"Product image '{selected_base}' not found on server. Ensure it is in your static folder.")
+                raise Exception(f"Base product {selected_base} not found.")
 
-            # 3. Design Image Setup
+            # 4. PREPARE DESIGN
             if len(design_img.shape) == 2 or design_img.shape[2] == 3:
                 design_img = cv2.cvtColor(design_img, cv2.COLOR_BGR2BGRA)
 
@@ -60,7 +66,7 @@ def upload_view(request):
             src_pts = np.float32([[0, 0], [w, 0], [w, h], [0, h]])
             dst_pts = np.copy(config['dst_pts'])
             
-            # 4. TRANSFORMATION MATH (Scaling, Rotation, Translation)
+            # 5. GET SLIDER VALUES
             stage = request.POST.get('processing_stage', 'blending')
             intensity = int(request.POST.get('blend_intensity', 50)) / 100.0
             scale = int(request.POST.get('scale_percent', 100)) / 100.0
@@ -68,29 +74,22 @@ def upload_view(request):
             offset_y = int(request.POST.get('offset_y', 0))
             rotation = int(request.POST.get('rotation', 0))
 
+            # 6. TRANSFORMATION MATH
             cx, cy = np.mean(dst_pts[:, 0]), np.mean(dst_pts[:, 1])
             angle_rad = math.radians(rotation)
 
             for pt in dst_pts:
-                # Scale
                 px, py = cx + (pt[0] - cx) * scale, cy + (pt[1] - cy) * scale
-                # Rotate
                 tx, ty = px - cx, py - cy
                 rx = tx * math.cos(angle_rad) - ty * math.sin(angle_rad)
                 ry = tx * math.sin(angle_rad) + ty * math.cos(angle_rad)
-                # Translate
                 pt[0], pt[1] = rx + cx + offset_x, ry + cy + offset_y
 
-            if stage == 'flat':
-                start_x, start_y = dst_pts[0][0], dst_pts[0][1]
-                flat_size = int(200 * scale)
-                dst_pts = np.float32([[start_x, start_y], [start_x + flat_size, start_y], [start_x + flat_size, start_y + flat_size], [start_x, start_y + flat_size]])
-
-            # 5. OpenCV Warping & Blending
+            # 7. WARPING AND BLENDING
             matrix = cv2.getPerspectiveTransform(src_pts, dst_pts)
-            shirt_h, shirt_w = base_img.shape[:2]
-            warped_design = cv2.warpPerspective(design_img, matrix, (shirt_w, shirt_h))
-            alpha_channel = warped_design[:, :, 3] / 255.0
+            bh, bw = base_img.shape[:2]
+            warped = cv2.warpPerspective(design_img, matrix, (bw, bh))
+            alpha = warped[:, :, 3] / 255.0
             
             if stage == 'blending':
                 base_gray = cv2.cvtColor(base_img, cv2.COLOR_BGR2GRAY)
@@ -98,13 +97,12 @@ def upload_view(request):
             else:
                 shadow_map = 1.0
             
-            for c in range(0, 3):
-                base_img[:, :, c] = (alpha_channel * (warped_design[:, :, c] * shadow_map) + (1 - alpha_channel) * base_img[:, :, c])
+            for c in range(3):
+                base_img[:, :, c] = (alpha * (warped[:, :, c] * shadow_map) + (1 - alpha) * base_img[:, :, c])
             
-            # 6. Encode to Base64 for the Browser
+            # 8. OUTPUT
             _, buffer = cv2.imencode('.jpg', base_img)
             context['image_url'] = f"data:image/jpeg;base64,{base64.b64encode(buffer).decode('utf-8')}"
-            
             context.update({
                 'selected_base': selected_base, 'processing_stage': stage,
                 'blend_intensity': int(intensity * 100), 'current_scale': int(scale * 100),
