@@ -10,10 +10,10 @@ https://docs.djangoproject.com/en/6.0/howto/deployment/wsgi/
 import os
 from django.core.wsgi import get_wsgi_application
 
-# Ensure this matches your project folder name (usually 'core')
+# Make sure this says 'core.settings'
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
 
 application = get_wsgi_application()
 
-# This is the line Vercel MUST see
+# Vercel needs this line specifically
 app = application

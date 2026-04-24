@@ -63,7 +63,7 @@ TEMPLATES = [
         },
     },
 ]
-
+ROOT_URLCONF = 'core.urls'
 WSGI_APPLICATION = 'core.wsgi.application'
 
 # Database - Using SQLite for simplicity (ignored by git usually)
