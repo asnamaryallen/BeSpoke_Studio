@@ -22,27 +22,36 @@ def upload_view(request):
             return render(request, 'upload.html', {'error_message': 'Please upload a design first!'})
 
         try:
-            # 1. Memory-Safe Image Loading
+            # 1. Process Uploaded Design in RAM
             file_bytes = np.frombuffer(design_file.read(), np.uint8)
             design_img = cv2.imdecode(file_bytes, cv2.IMREAD_UNCHANGED)
             
             if design_img is None:
                 raise Exception("Invalid image file uploaded.")
 
-            # 2. Product Selection & Pathing
+            # 2. THE PATH FIX: Search everywhere for the base product
             selected_base = request.POST.get('base_product', 'shirt.jpg')
-            base_path = os.path.join(settings.BASE_DIR, 'static', selected_base)
-            base_img = cv2.imread(base_path)
-
-            if base_img is None:
-                # Fallback pathing for local vs production
-                base_path = os.path.join(settings.BASE_DIR, 'customizer', 'static', selected_base)
-                base_img = cv2.imread(base_path)
             
-            if base_img is None:
-                raise Exception(f"Product image {selected_base} not found.")
+            # This searches the root, static, and app folders automatically
+            search_paths = [
+                os.path.join(settings.BASE_DIR, 'static', selected_base),
+                os.path.join(settings.BASE_DIR, 'staticfiles', selected_base),
+                os.path.join(settings.BASE_DIR, 'customizer', 'static', selected_base),
+                os.path.join(os.path.dirname(__file__), 'static', selected_base),
+                selected_base # Root check
+            ]
+            
+            base_img = None
+            for path in search_paths:
+                if os.path.exists(path):
+                    base_img = cv2.imread(path)
+                    if base_img is not None:
+                        break
 
-            # 3. Format Design Image
+            if base_img is None:
+                raise Exception(f"Product image '{selected_base}' not found on server. Ensure it is in your static folder.")
+
+            # 3. Design Image Setup
             if len(design_img.shape) == 2 or design_img.shape[2] == 3:
                 design_img = cv2.cvtColor(design_img, cv2.COLOR_BGR2BGRA)
 
@@ -51,7 +60,7 @@ def upload_view(request):
             src_pts = np.float32([[0, 0], [w, 0], [w, h], [0, h]])
             dst_pts = np.copy(config['dst_pts'])
             
-            # --- TRANSFORMATION LOGIC ---
+            # 4. TRANSFORMATION MATH (Scaling, Rotation, Translation)
             stage = request.POST.get('processing_stage', 'blending')
             intensity = int(request.POST.get('blend_intensity', 50)) / 100.0
             scale = int(request.POST.get('scale_percent', 100)) / 100.0
@@ -63,13 +72,21 @@ def upload_view(request):
             angle_rad = math.radians(rotation)
 
             for pt in dst_pts:
+                # Scale
                 px, py = cx + (pt[0] - cx) * scale, cy + (pt[1] - cy) * scale
+                # Rotate
                 tx, ty = px - cx, py - cy
                 rx = tx * math.cos(angle_rad) - ty * math.sin(angle_rad)
                 ry = tx * math.sin(angle_rad) + ty * math.cos(angle_rad)
+                # Translate
                 pt[0], pt[1] = rx + cx + offset_x, ry + cy + offset_y
 
-            # 4. Warping & Blending
+            if stage == 'flat':
+                start_x, start_y = dst_pts[0][0], dst_pts[0][1]
+                flat_size = int(200 * scale)
+                dst_pts = np.float32([[start_x, start_y], [start_x + flat_size, start_y], [start_x + flat_size, start_y + flat_size], [start_x, start_y + flat_size]])
+
+            # 5. OpenCV Warping & Blending
             matrix = cv2.getPerspectiveTransform(src_pts, dst_pts)
             shirt_h, shirt_w = base_img.shape[:2]
             warped_design = cv2.warpPerspective(design_img, matrix, (shirt_w, shirt_h))
@@ -84,7 +101,7 @@ def upload_view(request):
             for c in range(0, 3):
                 base_img[:, :, c] = (alpha_channel * (warped_design[:, :, c] * shadow_map) + (1 - alpha_channel) * base_img[:, :, c])
             
-            # 5. Output for Template
+            # 6. Encode to Base64 for the Browser
             _, buffer = cv2.imencode('.jpg', base_img)
             context['image_url'] = f"data:image/jpeg;base64,{base64.b64encode(buffer).decode('utf-8')}"
             
@@ -97,7 +114,7 @@ def upload_view(request):
             return render(request, 'upload.html', context)
 
         except Exception as e:
-            context['error_message'] = f"Studio Error: {str(e)}"
+            context['error_message'] = str(e)
             return render(request, 'upload.html', context)
 
     return render(request, 'upload.html')
